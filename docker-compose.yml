@@ -1,0 +1,13 @@
+services:
+  courier-mysql:
+    image: mysql:8.1
+    container_name: courier-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE_NAME:-courier_db}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_USER: ${DB_USERNAME:-root}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-root}
+    ports:
+      - "${DB_PORT:-3309}:3306"
+
