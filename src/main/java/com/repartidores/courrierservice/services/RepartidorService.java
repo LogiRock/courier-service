@@ -59,4 +59,6 @@ public interface RepartidorService {
      * @param id Identificador único del repartidor a eliminar.
      */
     void eliminarRepartidor(UUID id);
+
+    RepartidorResponseDto obtenerPorUserId(UUID userId);
 }
