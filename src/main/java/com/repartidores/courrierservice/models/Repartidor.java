@@ -39,4 +39,7 @@ public class Repartidor {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private EstadoRepartidor estado;
+
+    @Column(name = "user_id", nullable = false, unique = true)
+    private UUID userId;
 }

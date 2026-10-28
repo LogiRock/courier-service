@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -117,6 +119,7 @@ public class RepartidorController {
         RepartidorResponseDto response = repartidorService.actualizarEstado(id, request.getEstado());
         return ResponseEntity.ok(response);
     }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar repartidor")
     @ApiResponses({
@@ -128,5 +131,15 @@ public class RepartidorController {
         repartidorService.eliminarRepartidor(id);
         return ResponseEntity.noContent().build();
     }
-}
 
+    @GetMapping("/me")
+    @Operation(summary = "Consultar el repartidor autenticado")
+    public ResponseEntity<RepartidorResponseDto> obtenerMiRepartidor(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        UUID userId = UUID.fromString(jwt.getClaimAsString("userId"));
+
+        return ResponseEntity.ok(
+                repartidorService.obtenerPorUserId(userId));
+    }
+}
