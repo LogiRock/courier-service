@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.repartidores.courrierservice.dto.RepartidorRequestDto;
 import com.repartidores.courrierservice.dto.RepartidorResponseDto;
+import com.repartidores.courrierservice.dto.RepartidorUpdateDto;
+import com.repartidores.courrierservice.dto.DisponibilidadRepartidorResponseDto;
 import com.repartidores.courrierservice.enums.EstadoRepartidor;
 import com.repartidores.courrierservice.models.Repartidor;
 import com.repartidores.courrierservice.repositories.RepartidorRepository;
@@ -50,6 +52,14 @@ public class RepartidorServiceImpl implements RepartidorService {
     }
 
     @Override
+    public DisponibilidadRepartidorResponseDto consultarDisponibilidad(UUID id) {
+        Repartidor repartidor = buscarRepartidorPorId(id);
+        boolean disponible = repartidor.getEstado() == EstadoRepartidor.ACTIVO;
+        String motivo = disponible ? null : "El repartidor está INACTIVO.";
+        return new DisponibilidadRepartidorResponseDto(disponible, motivo);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<RepartidorResponseDto> listarRepartidores() {
         return repartidorRepository.findAll()
@@ -60,13 +70,12 @@ public class RepartidorServiceImpl implements RepartidorService {
 
     @Override
     @Transactional
-    public RepartidorResponseDto modificarRepartidor(UUID id, RepartidorRequestDto request) {
+    public RepartidorResponseDto modificarRepartidor(UUID id, RepartidorUpdateDto request) {
         log.info("Modificando repartidor con ID: {}", id);
 
         Repartidor repartidor = buscarRepartidorPorId(id);
         repartidor.setNombre(request.getNombre());
         repartidor.setTipoVehiculo(request.getTipoVehiculo());
-        repartidor.setEstado(request.getEstado());
 
         repartidor = repartidorRepository.save(repartidor);
         return mapearAResponseDto(repartidor);

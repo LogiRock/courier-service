@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import com.repartidores.courrierservice.dto.RepartidorRequestDto;
 import com.repartidores.courrierservice.dto.RepartidorResponseDto;
+import com.repartidores.courrierservice.dto.RepartidorUpdateDto;
+import com.repartidores.courrierservice.dto.DisponibilidadRepartidorResponseDto;
 import com.repartidores.courrierservice.enums.EstadoRepartidor;
 
 /**
@@ -28,6 +30,9 @@ public interface RepartidorService {
      */
     RepartidorResponseDto obtenerRepartidor(UUID id);
 
+    /** Consulta si un repartidor ACTIVO puede recibir un envío. */
+    DisponibilidadRepartidorResponseDto consultarDisponibilidad(UUID id);
+
     /**
      * Recupera la lista completa de todos los repartidores registrados.
      *
@@ -42,7 +47,7 @@ public interface RepartidorService {
      * @param request Datos actualizados del repartidor.
      * @return DTO con la información actualizada.
      */
-    RepartidorResponseDto modificarRepartidor(UUID id, RepartidorRequestDto request);
+    RepartidorResponseDto modificarRepartidor(UUID id, RepartidorUpdateDto request);
 
     /**
      * Modifica el estado operativo de un repartidor.
