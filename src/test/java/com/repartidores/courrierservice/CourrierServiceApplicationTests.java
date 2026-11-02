@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.hamcrest.Matchers.containsString;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:courierdb;DB_CLOSE_DELAY=-1;MODE=MySQL",
@@ -62,10 +64,15 @@ class CourrierServiceApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id));
 
+        mockMvc.perform(get("/api/v1/repartidores/{id}/disponibilidad", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.disponible").value(true))
+                .andExpect(jsonPath("$.motivo").doesNotExist());
+
         mockMvc.perform(put("/api/v1/repartidores/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nombre":"Ana Pérez Actualizada","tipoVehiculo":"Bicicleta","estado":"ACTIVO"}
+                                {"nombre":"Ana Pérez Actualizada","tipoVehiculo":"Bicicleta","estado":"INACTIVO"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombre").value("Ana Pérez Actualizada"))
@@ -75,23 +82,28 @@ class CourrierServiceApplicationTests {
         mockMvc.perform(patch("/api/v1/repartidores/{id}/estado", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"estado":"EN_RUTA"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.estado").value("EN_RUTA"));
-
-        mockMvc.perform(get("/api/v1/repartidores/{id}", id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nombre").value("Ana Pérez Actualizada"))
-                .andExpect(jsonPath("$.estado").value("EN_RUTA"));
-
-        mockMvc.perform(patch("/api/v1/repartidores/{id}/estado", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
                                 {"estado":"INACTIVO"}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("INACTIVO"));
+
+        mockMvc.perform(get("/api/v1/repartidores/{id}/disponibilidad", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.disponible").value(false))
+                .andExpect(jsonPath("$.motivo").value("El repartidor está INACTIVO."));
+
+        mockMvc.perform(get("/api/v1/repartidores/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("Ana Pérez Actualizada"))
+                .andExpect(jsonPath("$.estado").value("INACTIVO"));
+
+        mockMvc.perform(patch("/api/v1/repartidores/{id}/estado", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"estado":"ACTIVO"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ACTIVO"));
     }
 
     @Test
@@ -101,7 +113,18 @@ class CourrierServiceApplicationTests {
                         .content("""
                                 {"nombre":" ","tipoVehiculo":"Motocicleta"}
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.path").value("/api/v1/repartidores"))
+                .andExpect(jsonPath("$.validationErrors").isArray());
+    }
+
+    @Test
+    void documentaDisponibilidadEnOpenApi() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/v1/repartidores/{id}/disponibilidad")))
+                .andExpect(content().string(containsString("Disponibilidad operativa de un repartidor")));
     }
 
     private String extraerId(String json) {

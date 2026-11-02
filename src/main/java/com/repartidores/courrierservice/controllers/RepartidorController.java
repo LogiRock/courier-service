@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.repartidores.courrierservice.dto.ErrorResponseDto;
+import com.repartidores.courrierservice.dto.DisponibilidadRepartidorResponseDto;
+import com.repartidores.courrierservice.dto.DisponibilidadRepartidorResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.repartidores.courrierservice.dto.EstadoRepartidorRequestDto;
 import com.repartidores.courrierservice.dto.RepartidorRequestDto;
 import com.repartidores.courrierservice.dto.RepartidorResponseDto;
+import com.repartidores.courrierservice.dto.RepartidorUpdateDto;
 import com.repartidores.courrierservice.services.RepartidorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +75,17 @@ public class RepartidorController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{id}/disponibilidad")
+    @Operation(summary = "Consultar disponibilidad", description = "Indica si el repartidor está disponible para recibir un envío y, si no lo está, informa el motivo.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Disponibilidad consultada", content = @Content(schema = @Schema(implementation = DisponibilidadRepartidorResponseDto.class))),
+            @ApiResponse(responseCode = "404", description = "Repartidor inexistente", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
+    })
+    public ResponseEntity<DisponibilidadRepartidorResponseDto> consultarDisponibilidad(
+            @Parameter(description = "UUID del repartidor", required = true) @PathVariable UUID id) {
+        return ResponseEntity.ok(repartidorService.consultarDisponibilidad(id));
+    }
+
     /**
      * Endpoint para consultar todos los repartidores registrados.
      */
@@ -87,27 +101,22 @@ public class RepartidorController {
      * Endpoint para actualizar la información de un repartidor existente.
      */
     @PutMapping("/{id}")
-    @Operation(summary = "Modificar repartidor")
+    @Operation(summary = "Modificar datos del repartidor", description = "Actualiza nombre y tipo de vehículo. El estado operativo se modifica únicamente con PATCH.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Repartidor actualizado"),
-            @ApiResponse(responseCode = "400", description = "Datos inválidos", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
+            @ApiResponse(responseCode = "400", description = "Nombre o tipo de vehículo inválido", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class))),
             @ApiResponse(responseCode = "404", description = "Repartidor inexistente", content = @Content(schema = @Schema(implementation = ErrorResponseDto.class)))
     })
     public ResponseEntity<RepartidorResponseDto> modificarRepartidor(
             @Parameter(description = "UUID del repartidor", required = true) @PathVariable UUID id,
-            @Valid @RequestBody RepartidorRequestDto request) {
+            @Valid @RequestBody RepartidorUpdateDto request) {
         RepartidorResponseDto response = repartidorService.modificarRepartidor(id, request);
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Endpoint para eliminar físicamente un repartidor del sistema.
-     */
-    /**
-     * Endpoint para modificar el estado operativo del repartidor.
-     */
+    /** Actualiza el estado operativo sin permitir cambiar otros datos. */
     @PatchMapping("/{id}/estado")
-    @Operation(summary = "Modificar estado del repartidor")
+    @Operation(summary = "Modificar estado del repartidor", description = "Los estados permitidos son ACTIVO e INACTIVO.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estado actualizado"),
             @ApiResponse(responseCode = "400", description = "Estado inválido"),
@@ -120,6 +129,7 @@ public class RepartidorController {
         return ResponseEntity.ok(response);
     }
 
+    /** Elimina físicamente un repartidor del sistema. */
     @DeleteMapping("/{id}")
     @Operation(summary = "Eliminar repartidor")
     @ApiResponses({
