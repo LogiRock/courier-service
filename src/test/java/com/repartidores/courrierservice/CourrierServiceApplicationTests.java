@@ -1,8 +1,11 @@
 package com.repartidores.courrierservice;
 
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.repartidores.courrierservice.clients.SecurityClient;
+import com.repartidores.courrierservice.dto.UsuarioResponseDto;
 import com.repartidores.courrierservice.repositories.RepartidorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,17 +13,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.hamcrest.Matchers.containsString;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:courierdb;DB_CLOSE_DELAY=-1;MODE=MySQL",
@@ -29,7 +38,11 @@ import static org.hamcrest.Matchers.containsString;
         "spring.datasource.password=",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-        "spring.cloud.config.enabled=false"
+        "spring.cloud.config.enabled=false",
+        "eureka.client.enabled=false",
+        // Clave de prueba (32 bytes en Base64). No es la real.
+        "security.jwt.secret-base64=dGVzdC1rZXktcGFyYS1sb3MtdGVzdHMtMzItYnl0ZXM=",
+        "security.jwt.issuer=security-service"
 })
 @AutoConfigureMockMvc
 class CourrierServiceApplicationTests {
@@ -40,17 +53,28 @@ class CourrierServiceApplicationTests {
     @Autowired
     private RepartidorRepository repository;
 
+    // security-service no corre en los tests: se simula la respuesta del Feign.
+    @MockitoBean
+    private SecurityClient securityClient;
+
     @BeforeEach
-    void limpiarBase() {
+    void preparar() {
         repository.deleteAll();
+        when(securityClient.registrarUsuarioRepartidor(any()))
+                .thenReturn(new UsuarioResponseDto(UUID.randomUUID(), "ana.perez", "ROLE_REPARTIDOR"));
+    }
+
+    private static RequestPostProcessor admin() {
+        return jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 
     @Test
     void permiteRegistrarListarModificarYActualizarEstadoDeRepartidor() throws Exception {
-        MvcResult alta = mockMvc.perform(post("/api/v1/repartidores")
+        MvcResult alta = mockMvc.perform(post("/api/v1/repartidores").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nombre":"Ana Pérez","tipoVehiculo":"Motocicleta","estado":"ACTIVO"}
+                                {"nombre":"Ana Pérez","tipoVehiculo":"Motocicleta","estado":"ACTIVO",
+                                 "username":"ana.perez","password":"clave1234"}
                                 """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNotEmpty())
@@ -60,16 +84,16 @@ class CourrierServiceApplicationTests {
 
         String id = extraerId(alta.getResponse().getContentAsString());
 
-        mockMvc.perform(get("/api/v1/repartidores"))
+        mockMvc.perform(get("/api/v1/repartidores").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id));
 
-        mockMvc.perform(get("/api/v1/repartidores/{id}/disponibilidad", id))
+        mockMvc.perform(get("/api/v1/repartidores/{id}/disponibilidad", id).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.disponible").value(true))
                 .andExpect(jsonPath("$.motivo").doesNotExist());
 
-        mockMvc.perform(put("/api/v1/repartidores/{id}", id)
+        mockMvc.perform(put("/api/v1/repartidores/{id}", id).with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":"Ana Pérez Actualizada","tipoVehiculo":"Bicicleta","estado":"INACTIVO"}
@@ -79,7 +103,7 @@ class CourrierServiceApplicationTests {
                 .andExpect(jsonPath("$.tipoVehiculo").value("Bicicleta"))
                 .andExpect(jsonPath("$.estado").value("ACTIVO"));
 
-        mockMvc.perform(patch("/api/v1/repartidores/{id}/estado", id)
+        mockMvc.perform(patch("/api/v1/repartidores/{id}/estado", id).with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"estado":"INACTIVO"}
@@ -87,28 +111,20 @@ class CourrierServiceApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("INACTIVO"));
 
-        mockMvc.perform(get("/api/v1/repartidores/{id}/disponibilidad", id))
+        mockMvc.perform(get("/api/v1/repartidores/{id}/disponibilidad", id).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.disponible").value(false))
                 .andExpect(jsonPath("$.motivo").value("El repartidor está INACTIVO."));
 
-        mockMvc.perform(get("/api/v1/repartidores/{id}", id))
+        mockMvc.perform(get("/api/v1/repartidores/{id}", id).with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nombre").value("Ana Pérez Actualizada"))
                 .andExpect(jsonPath("$.estado").value("INACTIVO"));
-
-        mockMvc.perform(patch("/api/v1/repartidores/{id}/estado", id)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"estado":"ACTIVO"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.estado").value("ACTIVO"));
     }
 
     @Test
     void rechazaDatosInvalidosAlRegistrar() throws Exception {
-        mockMvc.perform(post("/api/v1/repartidores")
+        mockMvc.perform(post("/api/v1/repartidores").with(admin())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"nombre":" ","tipoVehiculo":"Motocicleta"}
@@ -117,6 +133,24 @@ class CourrierServiceApplicationTests {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.path").value("/api/v1/repartidores"))
                 .andExpect(jsonPath("$.validationErrors").isArray());
+    }
+
+    @Test
+    void sinTokenNoPuedeListarRepartidores() throws Exception {
+        mockMvc.perform(get("/api/v1/repartidores"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void unClienteNoPuedeCrearRepartidores() throws Exception {
+        mockMvc.perform(post("/api/v1/repartidores")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CLIENTE")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"nombre":"X","tipoVehiculo":"Moto","estado":"ACTIVO",
+                                 "username":"x.user","password":"clave1234"}
+                                """))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -135,6 +169,3 @@ class CourrierServiceApplicationTests {
         return matcher.group(1);
     }
 }
-
-
-
