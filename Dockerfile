@@ -1,19 +1,16 @@
-# Etapa 1: Compilación (Build)
+# Etapa 1: compilación
 FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
-# Copiamos el pom y descargamos dependencias primero (optimiza el caché de Docker)
 COPY pom.xml .
-RUN mvn dependency:go-offline
-# Copiamos el código fuente y compilamos ignorando los tests para ir más rápido
+RUN mvn -B dependency:go-offline
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn -B clean package -DskipTests
 
-# Etapa 2: Ejecución (Runtime) optimizada
+# Etapa 2: ejecución, con un usuario sin privilegios
 FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
-# Exponemos el puerto (cambialo según el servicio: 8080, 8081, 8082 u 8088)
-EXPOSE 8088
-# Traemos SOLO el archivo .jar generado en la Etapa 1
+RUN addgroup -S spring && adduser -S spring -G spring
 COPY --from=build /app/target/*.jar app.jar
-
+USER spring
+EXPOSE 8082
 ENTRYPOINT ["java", "-jar", "app.jar"]
