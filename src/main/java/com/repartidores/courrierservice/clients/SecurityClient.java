@@ -1,54 +1,22 @@
 package com.repartidores.courrierservice.clients;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.stereotype.Component;
-import org.springframework.http.HttpHeaders;
-import org.springframework.web.client.RestClient;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import com.repartidores.courrierservice.dto.RegistroUsuarioRequest;
 import com.repartidores.courrierservice.dto.UsuarioResponseDto;
 
-@Component
-public class SecurityClient {
+@FeignClient(
+        name = "SECURITY-SERVICE",
+        configuration = SecurityClientConfiguration.class)
+public interface SecurityClient {
 
-    private final RestClient restClient;
+    @PostMapping("/api/auth/register")
+    UsuarioResponseDto registrarUsuario(
+            @RequestBody RegistroUsuarioRequest request);
 
-    public SecurityClient(
-            RestClient.Builder builder,
-            @Value("${security.service.url}") String url) {
-
-        this.restClient = builder
-                .baseUrl(url)
-                .build();
-    }
-
-    public UsuarioResponseDto registrarUsuario(
-            RegistroUsuarioRequest request) {
-
-        return restClient.post()
-                .uri("/api/auth/register")
-                .body(request)
-                .retrieve()
-                .body(UsuarioResponseDto.class);
-    }
-
-    public UsuarioResponseDto registrarUsuarioRepartidor(
-            RegistroUsuarioRequest request) {
-
-        JwtAuthenticationToken authentication =
-                (JwtAuthenticationToken) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication();
-
-        String token = authentication.getToken().getTokenValue();
-
-        return restClient.post()
-                .uri("/api/auth/register/repartidor")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .body(request)
-                .retrieve()
-                .body(UsuarioResponseDto.class);
-    }
+    @PostMapping("/api/auth/register/repartidor")
+    UsuarioResponseDto registrarUsuarioRepartidor(
+            @RequestBody RegistroUsuarioRequest request);
 }
