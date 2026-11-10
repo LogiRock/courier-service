@@ -16,6 +16,7 @@ import com.repartidores.courrierservice.dto.ErrorResponseDto;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import feign.FeignException;
 
 /** Convierte errores de la API a la estructura común de ErrorResponseDto. */
 @Slf4j
@@ -50,6 +51,19 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex, WebRequest request) {
         return buildError(HttpStatus.BAD_REQUEST,
                 "El cuerpo de la petición contiene datos inválidos o mal formados.", request, null);
+    }
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponseDto> handleFeign(
+            FeignException ex, WebRequest request) {
+        log.warn("security-service respondió {} al registrar el usuario", ex.status());
+        return switch (ex.status()) {
+            case 409 -> buildError(HttpStatus.CONFLICT,
+                    "El nombre de usuario ya existe.", request, null);
+            case 400 -> buildError(HttpStatus.BAD_REQUEST,
+                    "Los datos del usuario no son válidos.", request, null);
+            default -> buildError(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo crear el usuario. Intentá nuevamente.", request, null);
+        };
     }
 
     @ExceptionHandler(Exception.class)
